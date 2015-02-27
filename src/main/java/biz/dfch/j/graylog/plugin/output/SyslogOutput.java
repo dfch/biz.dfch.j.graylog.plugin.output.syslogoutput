@@ -1,6 +1,7 @@
 package biz.dfch.j.graylog.plugin.output;
 
 import biz.dfch.j.syslog4j.SyslogClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.assistedinject.Assisted;
 import org.graylog2.plugin.Message;
@@ -11,6 +12,7 @@ import org.graylog2.plugin.outputs.MessageOutput;
 import org.graylog2.plugin.outputs.MessageOutputConfigurationException;
 import org.graylog2.plugin.streams.Stream;
 import org.msgpack.annotation.NotNullable;
+import org.graylog2.syslog4j.SyslogConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -169,12 +171,13 @@ public class SyslogOutput implements MessageOutput {
             fields = Arrays.asList(configuration.getString(CONFIG_FIELDS).split("\\s*,\\s*"));
             if(configuration.getString(CONFIG_FIELDS).isEmpty() || 0 >= fields.size() || fields.isEmpty())
             {
-                LOG.warn(String.format("No fields were specified. Using the following default fields: '<message>'."));
+                LOG.info(String.format("No fields were specified. Using all fields."));
                 fields = new ArrayList<String>();
 //                fields.add("<timestamp>");
 //                fields.add("<stream>");
 //                fields.add("<source>");
-                fields.add("<message>");
+//                fields.add("<message>");
+                fields.add("*");
             }
             LOG.info("Verifying configuration SUCCEEDED.");
 
@@ -248,7 +251,7 @@ public class SyslogOutput implements MessageOutput {
                 syslogSeverity = getSyslogSeverityFromMessage(message);
             }
 
-            if(!configuration.getBoolean("CONFIG_USE_MESSAGE_SOURCE"))
+            if(configuration.getBoolean("CONFIG_USE_MESSAGE_SOURCE"))
             {
                 syslogClient.setLocalName(message.getSource());
             }
@@ -256,48 +259,62 @@ public class SyslogOutput implements MessageOutput {
             Map<String, Object> messageFields = message.getFields();
             boolean fIncludeFieldNames = configuration.getBoolean("CONFIG_INCLUDE_FIELD_NAMES");
             StringBuilder sb = new StringBuilder();
-            Map<String, Object> structuredData = new HashMap<String, Object>();
+            Map<String, String> structuredData = new HashMap<>();
             for (String fieldName : fields) {
                 switch (fieldName) {
                     case "<id>":
                         if (fIncludeFieldNames) {
-                            sb.append("id: ");
+                            sb.append("[id] ");
                         }
                         structuredData.put("id", message.getId());
                         sb.append(message.getId());
-                        sb.append(";");
+                        sb.append("|");
                         break;
                     case "<message>":
                         if (fIncludeFieldNames) {
-                            sb.append("message: ");
+                            sb.append("[message] ");
                         }
                         structuredData.put("message", message.getMessage());
                         sb.append(message.getMessage());
-                        sb.append(";");
+                        sb.append("|");
                         break;
                     case "<source>":
                         if (fIncludeFieldNames) {
-                            sb.append("source: ");
+                            sb.append("[source] ");
                         }
                         structuredData.put("source", message.getSource());
                         sb.append(message.getSource());
-                        sb.append(";");
+                        sb.append("|");
                         break;
                     case "<timestamp>":
                         if (fIncludeFieldNames) {
-                            sb.append("timestamp: ");
+                            sb.append("[timestamp] ");
                         }
-                        structuredData.put("timestamp", message.getTimestamp());
+                        structuredData.put("timestamp", message.getTimestamp().toDateTimeISO().toString());
                         sb.append(message.getTimestamp());
-                        sb.append(";");
+                        sb.append("|");
                         break;
                     case "<stream>":
                         if (fIncludeFieldNames) {
-                            sb.append("stream: ");
+                            sb.append("[stream] ");
                         }
                         structuredData.put("stream", streamTitle);
                         sb.append(streamTitle);
-                        sb.append(";");
+                        sb.append("|");
+                        break;
+                    case "*":
+                        for(Map.Entry<String, Object> entry : messageFields.entrySet())
+                        {
+                            if (fIncludeFieldNames) {
+                                sb.append("[");
+                                sb.append(entry.getKey());
+                                sb.append("] ");
+                            }
+                            String fieldValue = entry.getValue().toString();
+                            structuredData.put(fieldName, fieldValue);
+                            sb.append(fieldValue);
+                            sb.append("|");
+                        }
                         break;
                     default:
                         if (!messageFields.containsKey(fieldName)) {
@@ -305,20 +322,49 @@ public class SyslogOutput implements MessageOutput {
                             continue;
                         }
                         if (fIncludeFieldNames) {
+                            sb.append("[");
                             sb.append(fieldName);
-                            sb.append(": ");
+                            sb.append("] ");
                         }
                         String fieldValue = messageFields.get(fieldName).toString();
                         structuredData.put(fieldName, fieldValue);
                         sb.append(fieldValue);
-                        sb.append(";");
+                        sb.append("|");
                         break;
                 }
             }
 
+            LOG.info(String.format("%s: [sev %d] [fac %d] [%b] %s", configTransportProtocol, syslogSeverity, syslogFacilityNumber, configuration.getBoolean("CONFIG_USE_STRUCTURED_DATA"), sb.toString()));
             if(configTransportProtocol.endsWith("RFC3164"))
             {
-                syslogClient.log(syslogSeverity, sb.toString());
+                switch(syslogSeverity)
+                {
+                    case 7:
+                        syslogClient.logDebug(sb.toString());
+                        break;
+                    default:
+                    case 6:
+                        syslogClient.logInfo(sb.toString());
+                        break;
+                    case 5:
+                        syslogClient.logNotice(sb.toString());
+                        break;
+                    case 4:
+                        syslogClient.logWarn(sb.toString());
+                        break;
+                    case 3:
+                        syslogClient.logError(sb.toString());
+                        break;
+                    case 2:
+                        syslogClient.logCritical(sb.toString());
+                        break;
+                    case 1:
+                        syslogClient.logAlert(sb.toString());
+                        break;
+                    case 0:
+                        syslogClient.logEmergency(sb.toString());
+                        break;
+                }
             }
             else
             {
@@ -420,7 +466,7 @@ public class SyslogOutput implements MessageOutput {
         try
         {
             // we presume the contents is a number
-            syslogFacility = Integer.parseInt(syslogFacilityName);
+            syslogFacility = Integer.parseInt(syslogFacilityName, 10);
         }
         catch(NumberFormatException ex)
         {
@@ -482,7 +528,7 @@ public class SyslogOutput implements MessageOutput {
 
             configurationRequest.addField(new TextField(
                             CONFIG_FIELDS, "Message fields to send", "<stream>",
-                            "Specifies which fields to inlcude in message. This can be eiter field names (use '<>' for built-in fields and plain field name for user-defined fields) or empty to include all fields.",
+                            "Specifies which fields to inlcude in message. This can be either field names (use '<>' for built-in fields and plain field name for user-defined fields) or empty to include all fields.",
                             ConfigurationField.Optional.OPTIONAL)
             );
 
@@ -541,3 +587,23 @@ public class SyslogOutput implements MessageOutput {
         }
     }
 }
+
+/*
+    d-fens Graylog SYSLOG Output Plugin
+    Copyright (C) 2015  Ronald Rink, d-fens GmbH
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+
+ */

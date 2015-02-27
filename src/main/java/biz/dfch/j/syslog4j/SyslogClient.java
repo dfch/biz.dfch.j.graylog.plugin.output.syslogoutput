@@ -1,17 +1,16 @@
 package biz.dfch.j.syslog4j;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sun.istack.internal.NotNull;
 import org.msgpack.annotation.NotNullable;
-import org.productivity.java.syslog4j.*;
-import org.productivity.java.syslog4j.impl.message.modifier.checksum.ChecksumSyslogMessageModifier;
-import org.productivity.java.syslog4j.impl.message.modifier.hash.HashSyslogMessageModifier;
-import org.productivity.java.syslog4j.impl.message.modifier.sequential.SequentialSyslogMessageModifier;
-import org.productivity.java.syslog4j.impl.message.structured.StructuredSyslogMessage;
-import org.productivity.java.syslog4j.impl.net.tcp.TCPNetSyslogConfig;
-import org.productivity.java.syslog4j.impl.net.tcp.ssl.SSLTCPNetSyslogConfig;
-import org.productivity.java.syslog4j.impl.net.udp.UDPNetSyslog;
-import org.productivity.java.syslog4j.impl.net.udp.UDPNetSyslogConfig;
+import org.graylog2.syslog4j.*;
+import org.graylog2.syslog4j.impl.message.modifier.checksum.ChecksumSyslogMessageModifier;
+import org.graylog2.syslog4j.impl.message.modifier.hash.HashSyslogMessageModifier;
+import org.graylog2.syslog4j.impl.message.modifier.sequential.SequentialSyslogMessageModifier;
+import org.graylog2.syslog4j.impl.message.structured.StructuredSyslogMessage;
+import org.graylog2.syslog4j.impl.net.tcp.TCPNetSyslogConfig;
+import org.graylog2.syslog4j.impl.net.tcp.ssl.SSLTCPNetSyslogConfig;
+import org.graylog2.syslog4j.impl.net.udp.UDPNetSyslog;
+import org.graylog2.syslog4j.impl.net.udp.UDPNetSyslogConfig;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -84,9 +83,86 @@ public class SyslogClient
         {
             val = SYSLOG_FACILITY_LOCAL0;
         }
-        syslogConfig.setFacility(val);
+        switch(val)
+        {
+            case 0:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_KERN);
+                break;
+            case 1:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_USER);
+                break;
+            case 2:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_MAIL);
+                break;
+            case 3:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_DAEMON);
+                break;
+            case 4:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_AUTH);
+                break;
+            case 5:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_SYSLOG);
+                break;
+            case 6:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_LPR);
+                break;
+            case 7:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_NEWS);
+                break;
+            case 8:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_UUCP);
+                break;
+            case 9:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_CRON);
+                break;
+            case 10:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_AUTHPRIV);
+                break;
+            case 11:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_FTP);
+                break;
+            case 12:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_FTP);
+                break;
+            case 13:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_AUTH);
+                break;
+            case 14:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_AUTH);
+                break;
+            case 15:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_CRON);
+                break;
+            case 16:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_LOCAL0);
+                break;
+            case 17:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_LOCAL1);
+                break;
+            case 18:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_LOCAL2);
+                break;
+            case 19:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_LOCAL3);
+                break;
+            case 20:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_LOCAL4);
+                break;
+            case 21:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_LOCAL5);
+                break;
+            case 22:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_LOCAL6);
+                break;
+            case 23:
+                syslog.getConfig().setFacility(SyslogConstants.FACILITY_LOCAL7);
+                break;
+            default:
+                syslog.getConfig().setFacility(SyslogConstants.SYSLOG_FACILITY_DEFAULT);
+                break;
+        }
     }
-    public void setLocalName(@NotNull String val)
+    public void setLocalName(@NotNullable String val)
     {
       syslogConfig.setLocalName(val);
     }
@@ -124,7 +200,7 @@ public class SyslogClient
         syslog.log(severity, message);
     }
 
-    public void log(int severity, @NotNullable String messageId, @NotNullable Map<String, Object> structuredData, String message)
+    public void log(int severity, @NotNullable String messageId, @NotNullable Map<String, String> structuredData, String message)
     {
         if(SYSLOG_SEVERITY_EMERGENCY > severity && SYSLOG_SEVERITY_DEBUG < severity)
         {
@@ -136,6 +212,8 @@ public class SyslogClient
 
         StructuredSyslogMessage structuredMessage = new StructuredSyslogMessage(
                 messageId
+                ,
+                null
                 ,
                 structuredDataContainer
                 ,
@@ -185,3 +263,23 @@ public class SyslogClient
         syslog.emergency(message);
     }
 }
+
+/*
+    d-fens Graylog SYSLOG Output Plugin
+    Copyright (C) 2015  Ronald Rink, d-fens GmbH
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+
+ */
