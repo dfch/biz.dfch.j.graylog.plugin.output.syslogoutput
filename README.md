@@ -5,9 +5,6 @@ Plugin: biz.dfch.j.graylog.plugin.output.SyslogOutput
 
 d-fens GmbH, General-Guisan-Strasse 6, CH-6300 Zug, Switzerland
 
-Work in Progress
-================
-
 This Graylog Output Plugin lets you send messages to an upstream Syslog server (RFC3164 or RFC5424).
 
 See [Syslog Output Plugin for Graylog v1.0.0](http://d-fens.ch/) and [Creating a Graylog Output Plugin](http://d-fens.ch/2015/01/07/howto-creating-a-graylog-output-plugin/) (v0.92.x) for further description on how to create plugins.
