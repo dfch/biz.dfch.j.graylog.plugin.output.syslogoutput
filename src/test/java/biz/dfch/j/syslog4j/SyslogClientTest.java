@@ -3,6 +3,7 @@ package biz.dfch.j.syslog4j;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.productivity.java.syslog4j.SyslogConfigIF;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,5 +36,16 @@ public class SyslogClientTest
         client.logInfo("logInfo");
         client.logError("logError");
         client.logEmergency("logEmergency");
+    }
+    @Test
+    public void doLogRFC5424()
+    {
+        System.out.println("doLogRFC5424");
+
+        SyslogClient client = new SyslogClient("udp", "192.168.174.1", 514);
+        SyslogConfigIF config = client.getConfig();
+        client.logDebug("logDebug1");
+        config.setLocalName("tralala");
+        client.logDebug("logDebug2");
     }
 }

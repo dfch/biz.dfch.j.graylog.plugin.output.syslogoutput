@@ -1,6 +1,7 @@
 package biz.dfch.j.syslog4j;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.istack.internal.NotNull;
 import org.msgpack.annotation.NotNullable;
 import org.productivity.java.syslog4j.*;
 import org.productivity.java.syslog4j.impl.message.modifier.checksum.ChecksumSyslogMessageModifier;
@@ -23,6 +24,23 @@ public class SyslogClient
     private SyslogIF syslog = null;
     private SyslogConfigIF syslogConfig = null;
     private String syslogStructuredDataTag = "SDATA";
+
+    private static final int SYSLOG_PORT_UDP_DEFAULT = 514;
+    private static final int SYSLOG_PORT_TCP_DEFAULT = 5514;
+    private static final int SYSLOG_PORT_TCPTLS_DEFAULT = 10514;
+
+    private static final int SYSLOG_SEVERITY_EMERGENCY = 0;
+    private static final int SYSLOG_SEVERITY_ALERT = 1;
+    private static final int SYSLOG_SEVERITY_CRITICAL = 2;
+    private static final int SYSLOG_SEVERITY_ERROR = 3;
+    private static final int SYSLOG_SEVERITY_WARNING = 4;
+    private static final int SYSLOG_SEVERITY_NOTICE = 5;
+    private static final int SYSLOG_SEVERITY_INFORMATIONAL = 6;
+    private static final int SYSLOG_SEVERITY_DEBUG = 7;
+
+    private static final int SYSLOG_FACILITY_0 = 0;
+    private static final int SYSLOG_FACILITY_LOCAL0 = 16;
+    private static final int SYSLOG_FACILITY_MAX = 23;
     
     public SyslogClient(@NotNullable String transport,@NotNullable String serverName, int serverPort)
     {
@@ -48,30 +66,36 @@ public class SyslogClient
         }
         if(0 == serverPort)
         {
-            serverPort = 514;
+            serverPort = SYSLOG_PORT_UDP_DEFAULT;
         }
         syslogConfig.setHost(serverName);
         syslogConfig.setPort(serverPort);
         
-//        syslog.getConfig().addMessageModifier(ChecksumSyslogMessageModifier.createCRC32());
-//        syslog.getConfig().addMessageModifier(SequentialSyslogMessageModifier.createDefault());
-//        syslog.getConfig().addMessageModifier(HashSyslogMessageModifier.createSHA256());
+    }
+
+    public SyslogConfigIF getConfig()
+    {
+        return this.syslogConfig;
     }
 
     public void setFacility(int val)
     {
-        if(0 > val && 23 < val)
+        if(SYSLOG_FACILITY_0 > val && SYSLOG_FACILITY_MAX < val)
         {
-            val = 16;
+            val = SYSLOG_FACILITY_LOCAL0;
         }
         syslogConfig.setFacility(val);
+    }
+    public void setLocalName(@NotNull String val)
+    {
+      syslogConfig.setLocalName(val);
     }
 
     public void setStructuredData(boolean flag, String tag)
     {
         if(null == tag || tag.isEmpty())
         {
-            tag = "SDATA";
+            tag = syslogStructuredDataTag;
         }
         syslogStructuredDataTag = tag;
         syslogConfig.setUseStructuredData(flag);
@@ -79,25 +103,39 @@ public class SyslogClient
 
     public void log(int severity, @NotNullable String message)
     {
-        if(0 > severity && 7 < severity)
+        if(SYSLOG_SEVERITY_EMERGENCY > severity && SYSLOG_SEVERITY_DEBUG < severity)
         {
-            severity = 6;
+            severity = SYSLOG_SEVERITY_INFORMATIONAL;
         }
         syslog.log(severity, message);
     }
 
-    public void log(int severity, @NotNullable Map<String, Object> structuredData, String message)
+    public void log(int severity, int facility, @NotNullable String message)
     {
-        if(0 > severity && 7 < severity)
+        if(SYSLOG_SEVERITY_EMERGENCY > severity && SYSLOG_SEVERITY_DEBUG < severity)
         {
-            severity = 6;
+            severity = SYSLOG_SEVERITY_INFORMATIONAL;
+        }
+        if(SYSLOG_FACILITY_0 > facility && SYSLOG_FACILITY_MAX < facility)
+        {
+            facility = SYSLOG_FACILITY_LOCAL0;
+        }
+        syslogConfig.setFacility(facility);
+        syslog.log(severity, message);
+    }
+
+    public void log(int severity, @NotNullable String messageId, @NotNullable Map<String, Object> structuredData, String message)
+    {
+        if(SYSLOG_SEVERITY_EMERGENCY > severity && SYSLOG_SEVERITY_DEBUG < severity)
+        {
+            severity = SYSLOG_SEVERITY_INFORMATIONAL;
         }
 
         Map structuredDataContainer = new HashMap();
         structuredDataContainer.put(syslogStructuredDataTag, structuredData);
 
         StructuredSyslogMessage structuredMessage = new StructuredSyslogMessage(
-                "messageId"
+                messageId
                 ,
                 structuredDataContainer
                 ,

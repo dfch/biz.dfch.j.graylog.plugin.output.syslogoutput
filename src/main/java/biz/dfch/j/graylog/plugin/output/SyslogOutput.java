@@ -15,8 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -26,29 +25,40 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class SyslogOutput implements MessageOutput {
     private static final String CONFIG_SERVER_NAME = "CONFIG_SERVER_NAME";
     private static final String CONFIG_SERVER_PORT = "CONFIG_SERVER_PORT";
+    private static final String CONFIG_MESSAGE_ID = "CONFIG_MESSAGE_ID";
+    private static final String CONFIG_STRUCTURED_DATA_TAG = "CONFIG_STRUCTURED_DATA_TAG";
     private static final String CONFIG_USE_STRUCTURED_DATA = "CONFIG_USE_STRUCTURED_DATA";
     private static final String CONFIG_TRANSPORT_PROTOCOL = "CONFIG_TRANSPORT_PROTOCOL";
     private static final Map<String, String> CONFIG_TRANSPORT_PROTOCOL_OPTIONS = ImmutableMap.of(
-            "UDP", "UDP"
+            "UDP-RFC3164", "UDP-RFC3164"
             ,
-            "TCP", "TCP"
+            "UDP-RFC5424", "UDP-RFC5424"
             ,
-            "TCPTLS", "TCPTLS"
+            "TCP-RFC5424", "TCP-RFC5424"
+            ,
+            "TCPTLS-RFC5424", "TCPTLS-RFC5424"
     );
     private static final String CONFIG_LOGLEVEL_SEVERITY = "CONFIG_LOGLEVEL_SEVERITY";
     private static final String CONFIG_LOGLEVEL_FACILITY = "CONFIG_LOGLEVEL_FACILITY";
-
+    private static final String CONFIG_FIELDS = "CONFIG_FIELDS";
+    private static final String CONFIG_INCLUDE_FIELD_NAMES = "CONFIG_INCLUDE_FIELD_NAMES";
+    private static final String CONFIG_USE_MESSAGE_SOURCE = "CONFIG_USE_MESSAGE_SOURCE";
+    
     private static final Logger LOG = LoggerFactory.getLogger(SyslogOutput.class);
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private Configuration configuration;
     private String streamTitle;
+    List<String> fields;
 
+    private String syslogStructuredDataTag = null;
     private String syslogSeveritySource = null;
     private boolean isSyslogSeverityNumber = false;
     private int syslogSeverityNumber = 6;
     private String syslogFacilitySource = null;
     private boolean isSyslogFacilityNumber = false;
     private int syslogFacilityNumber = 16;
+    private String syslogMessageId = null;
+    private String configTransportProtocol = null;
 
     SyslogClient syslogClient;
 
@@ -71,7 +81,7 @@ public class SyslogOutput implements MessageOutput {
                 throw new MessageOutputConfigurationException(String.format("streamTitle: Parameter validation FAILED. Value cannot be null or empty."));
             }
 
-            String configTransportProtocol = configuration.getString("CONFIG_TRANSPORT_PROTOCOL");
+            configTransportProtocol = configuration.getString("CONFIG_TRANSPORT_PROTOCOL").toUpperCase();
             if (null == configTransportProtocol || configTransportProtocol.isEmpty() || !CONFIG_TRANSPORT_PROTOCOL_OPTIONS.containsKey(configTransportProtocol)) 
             {
                 throw new MessageOutputConfigurationException(String.format("configTransportProtocol: Parameter validation FAILED. Value cannot be null or empty."));
@@ -84,16 +94,15 @@ public class SyslogOutput implements MessageOutput {
             }
 
             int configServerPort = configuration.getInt("CONFIG_SERVER_PORT");
-            if (0 >= configServerPort) {
-                switch (configTransportProtocol.toUpperCase()) 
+            if (0 >= configServerPort || 65535 < configServerPort) {
+                switch (configTransportProtocol) 
                 {
-                    case "TCP":
+                    case "TCP-RFC5424":
                         configServerPort = 6514;
                         break;
-                    case "TCPTLS":
+                    case "TCPTLS-RFC5424":
                         configServerPort = 10514;
                         break;
-                    case "UDP":
                     default:
                         configServerPort = 514;
                         break;
@@ -145,24 +154,60 @@ public class SyslogOutput implements MessageOutput {
                 }
             }
 
+            syslogStructuredDataTag = configuration.getString("CONFIG_STRUCTURED_DATA_TAG");
+            if (null == syslogStructuredDataTag || syslogStructuredDataTag.isEmpty())
+            {
+                syslogStructuredDataTag = "SDATA";
+            }
+            
+            syslogMessageId = configuration.getString("CONFIG_MESSAGE_ID");
+            if (null == syslogMessageId || syslogMessageId.isEmpty())
+            {
+                syslogMessageId = streamTitle;
+            }
+
+            fields = Arrays.asList(configuration.getString(CONFIG_FIELDS).split("\\s*,\\s*"));
+            if(configuration.getString(CONFIG_FIELDS).isEmpty() || 0 >= fields.size() || fields.isEmpty())
+            {
+                LOG.warn(String.format("No fields were specified. Using the following default fields: '<message>'."));
+                fields = new ArrayList<String>();
+//                fields.add("<timestamp>");
+//                fields.add("<stream>");
+//                fields.add("<source>");
+                fields.add("<message>");
+            }
             LOG.info("Verifying configuration SUCCEEDED.");
 
             
-            LOG.debug("Connecting to Syslog server ...");
+            LOG.debug(String.format("Connecting to Syslog server '%s://%s:%d' ...", configTransportProtocol, configServerName, configServerPort));
 
-            syslogClient = new SyslogClient(configTransportProtocol, configServerName, configServerPort);
+            switch (configTransportProtocol)
+            {
+                case "TCP-RFC5424":
+                    syslogClient = new SyslogClient("TCP", configServerName, configServerPort);
+                    break;
+                case "TCPTLS-RFC5424":
+                    syslogClient = new SyslogClient("TCPTLS", configServerName, configServerPort);
+                    break;
+                default:
+                    syslogClient = new SyslogClient("UDP", configServerName, configServerPort);
+                    break;
+            }
             if(isSyslogFacilityNumber)
             {
                 syslogClient.setFacility(syslogFacilityNumber);
             }
 
-            LOG.info("Connecting to Syslog server SUCCEEDED.");
+            LOG.info(String.format("Connecting to Syslog server '%s://%s:%d' SUCCEEDED.", configTransportProtocol, configServerName, configServerPort));
 
             isRunning.set(true);
-        } catch (MessageOutputConfigurationException ex) {
+        } 
+        catch (MessageOutputConfigurationException ex) 
+        {
             LOG.error("Connecting to Syslog server FAILED.", ex);
             throw ex;
-        } catch (Exception ex) {
+        } catch (Exception ex) 
+        {
             LOG.error("Connecting to Syslog server FAILED.", ex);
             throw new MessageOutputConfigurationException(ex.getMessage());
         }
@@ -186,32 +231,116 @@ public class SyslogOutput implements MessageOutput {
 
     @Override
     public void write(Message message) throws Exception {
-        if (!isRunning.get()) {
+        if (!isRunning.get()) 
+        {
             return;
         }
-        try {
-            int syslogSeverity = getSyslogSeverityFromMessage(message);
-            int syslogFacility = getSyslogFacilityFromMessage(message);
+        try 
+        {
             if(!isSyslogFacilityNumber)
             {
+                int syslogFacility = getSyslogFacilityFromMessage(message);
                 syslogClient.setFacility(syslogFacility);
             }
-            switch (syslogSeverity) {
-                case 0:
-                case 1:
-                case 2:
-                case 3:
-                case 4:
-                case 5:
-                case 6:
-                case 7:
-                    syslogClient.log(syslogSeverity, message.getMessage());
-                    break;
-                default:
-                    throw new Exception(String.format("syslogSeverityNumber: Parameter validation FAILED. Parameter contains invalid number ('%d⁾).", syslogSeverity));
+            int syslogSeverity = syslogSeverityNumber;
+            if(!isSyslogSeverityNumber)
+            {
+                syslogSeverity = getSyslogSeverityFromMessage(message);
             }
-            //syslogClient.
-        } catch (Exception ex) {
+
+            if(!configuration.getBoolean("CONFIG_USE_MESSAGE_SOURCE"))
+            {
+                syslogClient.setLocalName(message.getSource());
+            }
+
+            Map<String, Object> messageFields = message.getFields();
+            boolean fIncludeFieldNames = configuration.getBoolean("CONFIG_INCLUDE_FIELD_NAMES");
+            StringBuilder sb = new StringBuilder();
+            Map<String, Object> structuredData = new HashMap<String, Object>();
+            for (String fieldName : fields) {
+                switch (fieldName) {
+                    case "<id>":
+                        if (fIncludeFieldNames) {
+                            sb.append("id: ");
+                        }
+                        structuredData.put("id", message.getId());
+                        sb.append(message.getId());
+                        sb.append(";");
+                        break;
+                    case "<message>":
+                        if (fIncludeFieldNames) {
+                            sb.append("message: ");
+                        }
+                        structuredData.put("message", message.getMessage());
+                        sb.append(message.getMessage());
+                        sb.append(";");
+                        break;
+                    case "<source>":
+                        if (fIncludeFieldNames) {
+                            sb.append("source: ");
+                        }
+                        structuredData.put("source", message.getSource());
+                        sb.append(message.getSource());
+                        sb.append(";");
+                        break;
+                    case "<timestamp>":
+                        if (fIncludeFieldNames) {
+                            sb.append("timestamp: ");
+                        }
+                        structuredData.put("timestamp", message.getTimestamp());
+                        sb.append(message.getTimestamp());
+                        sb.append(";");
+                        break;
+                    case "<stream>":
+                        if (fIncludeFieldNames) {
+                            sb.append("stream: ");
+                        }
+                        structuredData.put("stream", streamTitle);
+                        sb.append(streamTitle);
+                        sb.append(";");
+                        break;
+                    default:
+                        if (!messageFields.containsKey(fieldName)) {
+                            LOG.warn(String.format("%s: field name does not exist. Skipping ...", fieldName));
+                            continue;
+                        }
+                        if (fIncludeFieldNames) {
+                            sb.append(fieldName);
+                            sb.append(": ");
+                        }
+                        String fieldValue = messageFields.get(fieldName).toString();
+                        structuredData.put(fieldName, fieldValue);
+                        sb.append(fieldValue);
+                        sb.append(";");
+                        break;
+                }
+            }
+
+            if(configTransportProtocol.endsWith("RFC3164"))
+            {
+                syslogClient.log(syslogSeverity, sb.toString());
+            }
+            else
+            {
+                if(syslogMessageId.startsWith("<") && syslogMessageId.endsWith(">"))
+                {
+                    if(message.hasField(syslogMessageId))
+                    {
+                        syslogMessageId = message.getField(syslogMessageId).toString();
+                    }
+                }
+                if(!configuration.getBoolean("CONFIG_USE_STRUCTURED_DATA"))
+                {
+                    syslogClient.log(syslogSeverity, syslogMessageId, null, sb.toString());
+                }
+                else
+                {
+                    syslogClient.log(syslogSeverity, syslogMessageId, structuredData, sb.toString());
+                }
+            }
+        } 
+        catch (Exception ex) 
+        {
             LOG.error("Exception occurred.", ex);
             ex.printStackTrace();
             throw ex;
@@ -223,59 +352,56 @@ public class SyslogOutput implements MessageOutput {
         // default syslog severity level
         int syslogSeverity = syslogSeverityNumber;
         // try to get severity from field (can be string or number)
-        if(!isSyslogSeverityNumber)
+        String syslogSeverityName = syslogSeveritySource;
+        if(message.hasField(syslogSeveritySource))
         {
-            String syslogSeverityName = syslogSeveritySource;
-            if(message.hasField(syslogSeveritySource))
+            syslogSeverityName = message.getField(syslogSeveritySource).toString();
+        }
+        try
+        {
+            // we presume the contents is a number
+            syslogSeverity = Integer.parseInt(syslogSeverityName);
+        }
+        catch(NumberFormatException ex)
+        {
+            // treat contents as string if number conversion failed
+            switch(syslogSeverityName.toUpperCase())
             {
-                syslogSeverityName = message.getField(syslogSeveritySource).toString();
-            }
-            try
-            {
-                // we presume the contents is a number
-                syslogSeverity = Integer.parseInt(syslogSeverityName);
-            }
-            catch(NumberFormatException ex)
-            {
-                // treat contents as string if number conversion failed
-                switch(syslogSeverityName.toUpperCase())
-                {
-                    case "EMERGENCY":
-                        syslogSeverity = 0;
-                        break;
-                    case "ALERT":
-                    case "ALRT":
-                        syslogSeverity = 1;
-                        break;
-                    case "CRITICAL":
-                        syslogSeverity = 2;
-                        break;
-                    case "ERROR":
-                    case "ERR":
-                        syslogSeverity = 3;
-                        break;
-                    case "WARNING":
-                    case "WARN":
-                        syslogSeverity = 4;
-                        break;
-                    case "NOTICE":
-                        syslogSeverity = 5;
-                        break;
-                    case "INFORMATIONAL":
-                    case "INFORMATION":
-                    case "INFO":
-                        syslogSeverity = 6;
-                        break;
-                    case "DBG":
-                    case "DEBUG":
-                    case "TRACE":
-                        syslogSeverity = 7;
-                        break;
-                    default:
-                        syslogSeverity = syslogSeverityNumber;
-                        LOG.warn(String.format("%s: Parameter validation FAILED. Parameter is not a valid syslog severity. Assigned default severity '%d'.", syslogSeverityName, syslogSeverity));
-                        break;
-                }
+                case "EMERGENCY":
+                    syslogSeverity = 0;
+                    break;
+                case "ALERT":
+                case "ALRT":
+                    syslogSeverity = 1;
+                    break;
+                case "CRITICAL":
+                    syslogSeverity = 2;
+                    break;
+                case "ERROR":
+                case "ERR":
+                    syslogSeverity = 3;
+                    break;
+                case "WARNING":
+                case "WARN":
+                    syslogSeverity = 4;
+                    break;
+                case "NOTICE":
+                    syslogSeverity = 5;
+                    break;
+                case "INFORMATIONAL":
+                case "INFORMATION":
+                case "INFO":
+                    syslogSeverity = 6;
+                    break;
+                case "DBG":
+                case "DEBUG":
+                case "TRACE":
+                    syslogSeverity = 7;
+                    break;
+                default:
+                    syslogSeverity = syslogSeverityNumber;
+                    LOG.warn(String.format("%s: Parameter validation FAILED. Parameter is not a valid syslog severity. Assigned default severity '%d'.", syslogSeverityName, syslogSeverity));
+                    break;
             }
         }
         return syslogSeverity;
@@ -286,23 +412,20 @@ public class SyslogOutput implements MessageOutput {
         // default syslog facility level
         int syslogFacility = syslogFacilityNumber;
         // try to get severity from field (can be string or number)
-        if(!isSyslogFacilityNumber)
+        String syslogFacilityName = syslogFacilitySource;
+        if(message.hasField(syslogFacilitySource))
         {
-            String syslogFacilityName = syslogFacilitySource;
-            if(message.hasField(syslogFacilitySource))
-            {
-                syslogFacilityName = message.getField(syslogFacilitySource).toString();
-            }
-            try
-            {
-                // we presume the contents is a number
-                syslogFacility = Integer.parseInt(syslogFacilityName);
-            }
-            catch(NumberFormatException ex)
-            {
-                syslogFacility = syslogFacilityNumber;
-                LOG.warn(String.format("%s: Parameter validation FAILED. Parameter is not a valid syslog facility. Assigned default facility '%d'.", syslogFacilityName, syslogFacility));
-            }
+            syslogFacilityName = message.getField(syslogFacilitySource).toString();
+        }
+        try
+        {
+            // we presume the contents is a number
+            syslogFacility = Integer.parseInt(syslogFacilityName);
+        }
+        catch(NumberFormatException ex)
+        {
+            syslogFacility = syslogFacilityNumber;
+            LOG.warn(String.format("%s: Parameter validation FAILED. Parameter is not a valid syslog facility. Assigned default facility '%d'.", syslogFacilityName, syslogFacility));
         }
         return syslogFacility;
     }
@@ -339,9 +462,8 @@ public class SyslogOutput implements MessageOutput {
                             ConfigurationField.Optional.NOT_OPTIONAL)
             );
 
-
             configurationRequest.addField(new DropdownField(
-                            CONFIG_TRANSPORT_PROTOCOL, "Syslog Transport Protocol", CONFIG_TRANSPORT_PROTOCOL_OPTIONS.get("UDP").toString(), CONFIG_TRANSPORT_PROTOCOL_OPTIONS,
+                            CONFIG_TRANSPORT_PROTOCOL, "Syslog Transport Protocol", CONFIG_TRANSPORT_PROTOCOL_OPTIONS.get("UDP-RFC3164"), CONFIG_TRANSPORT_PROTOCOL_OPTIONS,
                             "Specifies the transport protocol to use",
                             ConfigurationField.Optional.NOT_OPTIONAL)
             );
@@ -353,14 +475,47 @@ public class SyslogOutput implements MessageOutput {
             );
 
             configurationRequest.addField(new TextField(
-                            CONFIG_LOGLEVEL_FACILITY, "Syslog facility log level", "local0",
+                            CONFIG_LOGLEVEL_FACILITY, "Syslog facility log level", "16",
                             "Specifies which facility log level to be used for messages. Log level can either be derived from a stream name ('<stream>'), a field names (use '<>' for built-in fields and plain field name for user-defined fields) that resolves to a valid facility number, or a fixed facility log level (0..23)",
                             ConfigurationField.Optional.NOT_OPTIONAL)
             );
 
+            configurationRequest.addField(new TextField(
+                            CONFIG_FIELDS, "Message fields to send", "<stream>",
+                            "Specifies which fields to inlcude in message. This can be eiter field names (use '<>' for built-in fields and plain field name for user-defined fields) or empty to include all fields.",
+                            ConfigurationField.Optional.OPTIONAL)
+            );
+
+            configurationRequest.addField(new BooleanField(
+                            CONFIG_INCLUDE_FIELD_NAMES, "Include field names in message", true,
+                            "Set to true to include field names in message, or set to false to omit field names and only send field contents.")
+            );
+
+//            configurationRequest.addField(new BooleanField(
+//                            CONFIG_USE_STRUCTURED_DATA, "Send message properties as structured message parameters", true,
+//                            "[RFC5424] Set to true to send message properties as structured message properties.")
+//            );
+
             configurationRequest.addField(new BooleanField(
                             CONFIG_USE_STRUCTURED_DATA, "Send message properties as structured message parameters", true,
-                            "Set to true to send message properties as structured message properties.")
+                            "[RFC5424] Set to true to send message properties as structured message properties.")
+            );
+
+            configurationRequest.addField(new TextField(
+                            CONFIG_STRUCTURED_DATA_TAG, "Syslog structured data tag", "SDATA",
+                            "[RFC5424] Only used if CONFIG_USE_STRUCTURED_DATA is specified. This field is used for naming the structured data tag in a syslog message.",
+                            ConfigurationField.Optional.OPTIONAL)
+            );
+
+            configurationRequest.addField(new TextField(
+                            CONFIG_MESSAGE_ID, "Syslog message id", "<id>",
+                            "[RFC5424] Specifies the MSGID field in a syslog message. Message id can either be derived from a stream name ('<stream>'), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed string",
+                            ConfigurationField.Optional.OPTIONAL)
+            );
+
+            configurationRequest.addField(new BooleanField(
+                            CONFIG_USE_MESSAGE_SOURCE, "Use the source field from the message a Syslog localname", true,
+                            "Set to true to use the source from the message field instead of the graylog node name.")
             );
 
             return configurationRequest;
