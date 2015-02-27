@@ -26,10 +26,10 @@ Port of Syslog server, specifies the TCP or UDP port of the Syslog server to sen
 Syslog Transport Protocol, can be either UDP-RFC3164, UDP-RFC5424 (essentially the same as with RFC3164), TCP-RFC5424 and TCPTSL-RFC5424
 
 * CONFIG_LOGLEVEL_SEVERITY
-Specifies which severity log level to be used for messages. Log level can either be derived from a stream name ('<stream>'), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed severity log level (0..7).
+Specifies which severity log level to be used for messages. Log level can either be derived from a stream name (```<stream>```), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed severity log level (0..7).
 
 * CONFIG_LOGLEVEL_FACILITY
-Specifies which facility level to be used for messages. Facility level can either be derived from a stream name ('<stream>'), a field names (use '<>' for built-in fields and plain field name for user-defined fields) that resolves to a valid facility number, or a fixed facility level (0..23).
+Specifies which facility level to be used for messages. Facility level can either be derived from a stream name (```<stream>```), a field names (use '<>' for built-in fields and plain field name for user-defined fields) that resolves to a valid facility number, or a fixed facility level (0..23).
 
 * CONFIG_FIELDS
 Specifies which fields to inlcude in message. This can be either field names (use '<>' for built-in fields and plain field name for user-defined fields) or empty (or '*') to include all fields.
@@ -44,7 +44,7 @@ Set to true to include field names in message, or set to false to omit field nam
 [RFC5424] Only used if CONFIG_USE_STRUCTURED_DATA is specified. This field is used for naming the structured data tag in a syslog message.
 
 * CONFIG_MESSAGE_ID
-[RFC5424] Specifies the MSGID field in a syslog message. Message id can either be derived from a stream name ('<stream>'), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed string.
+[RFC5424] Specifies the MSGID field in a syslog message. Message id can either be derived from a stream name (```<stream>```), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed string.
 
 * CONFIG_USE_MESSAGE_SOURCE
 Set to true to use the source from the message field instead of the graylog node name.
