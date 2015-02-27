@@ -17,37 +17,37 @@ Usage
 Here is a quick overview of the options you can use to configure the plugin:
 
 * CONFIG_SERVER_NAME
-Name or IP address of Syslog server
+  Name or IP address of Syslog server
 
 * CONFIG_SERVER_PORT
-Port of Syslog server, specifies the TCP or UDP port of the Syslog server to send messages to. Common defaults are UDP:514, TCP:10514, TCP/TLS 6514
+  Port of Syslog server, specifies the TCP or UDP port of the Syslog server to send messages to. Common defaults are UDP:514, TCP:10514, TCP/TLS 6514
 
 * CONFIG_TRANSPORT_PROTOCOL
-Syslog Transport Protocol, can be either UDP-RFC3164, UDP-RFC5424 (essentially the same as with RFC3164), TCP-RFC5424 and TCPTSL-RFC5424
+  Syslog Transport Protocol, can be either UDP-RFC3164, UDP-RFC5424 (essentially the same as with RFC3164), TCP-RFC5424 and TCPTSL-RFC5424
 
 * CONFIG_LOGLEVEL_SEVERITY
-Specifies which severity log level to be used for messages. Log level can either be derived from a stream name (```<stream>```), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed severity log level (0..7).
+  Specifies which severity log level to be used for messages. Log level can either be derived from a stream name (```<stream>```), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed severity log level (0..7).
 
 * CONFIG_LOGLEVEL_FACILITY
-Specifies which facility level to be used for messages. Facility level can either be derived from a stream name (```<stream>```), a field names (use '<>' for built-in fields and plain field name for user-defined fields) that resolves to a valid facility number, or a fixed facility level (0..23).
+  Specifies which facility level to be used for messages. Facility level can either be derived from a stream name (```<stream>```), a field names (use '<>' for built-in fields and plain field name for user-defined fields) that resolves to a valid facility number, or a fixed facility level (0..23).
 
 * CONFIG_FIELDS
-Specifies which fields to inlcude in message. This can be either field names (use '<>' for built-in fields and plain field name for user-defined fields) or empty (or '*') to include all fields.
+  Specifies which fields to inlcude in message. This can be either field names (use '<>' for built-in fields and plain field name for user-defined fields) or empty (or '*') to include all fields.
 
 * CONFIG_INCLUDE_FIELD_NAMES
-Set to true to include field names in message, or set to false to omit field names and only send field contents.
+  Set to true to include field names in message, or set to false to omit field names and only send field contents.
 
 * CONFIG_USE_STRUCTURED_DATA
-[RFC5424] Set to true to send message properties as structured message properties.
+  [RFC5424] Set to true to send message properties as structured message properties.
 
 * CONFIG_STRUCTURED_DATA_TAG
-[RFC5424] Only used if CONFIG_USE_STRUCTURED_DATA is specified. This field is used for naming the structured data tag in a syslog message.
+  [RFC5424] Only used if CONFIG_USE_STRUCTURED_DATA is specified. This field is used for naming the structured data tag in a syslog message.
 
 * CONFIG_MESSAGE_ID
-[RFC5424] Specifies the MSGID field in a syslog message. Message id can either be derived from a stream name (```<stream>```), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed string.
+  [RFC5424] Specifies the MSGID field in a syslog message. Message id can either be derived from a stream name (```<stream>```), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed string.
 
 * CONFIG_USE_MESSAGE_SOURCE
-Set to true to use the source from the message field instead of the graylog node name.
+  Set to true to use the source from the message field instead of the graylog node name.
 
 Getting started for users
 -------------------------
