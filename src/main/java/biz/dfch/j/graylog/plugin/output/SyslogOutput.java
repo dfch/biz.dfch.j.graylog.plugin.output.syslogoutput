@@ -528,7 +528,7 @@ public class SyslogOutput implements MessageOutput {
 
             configurationRequest.addField(new TextField(
                             CONFIG_FIELDS, "Message fields to send", "<stream>",
-                            "Specifies which fields to inlcude in message. This can be either field names (use '<>' for built-in fields and plain field name for user-defined fields) or empty to include all fields.",
+                            "Specifies which fields to inlcude in message. This can be either field names (use '<>' for built-in fields and plain field name for user-defined fields) or empty (or '*') to include all fields.",
                             ConfigurationField.Optional.OPTIONAL)
             );
 
@@ -555,7 +555,7 @@ public class SyslogOutput implements MessageOutput {
 
             configurationRequest.addField(new TextField(
                             CONFIG_MESSAGE_ID, "Syslog message id", "<id>",
-                            "[RFC5424] Specifies the MSGID field in a syslog message. Message id can either be derived from a stream name ('<stream>'), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed string",
+                            "[RFC5424] Specifies the MSGID field in a syslog message. Message id can either be derived from a stream name ('<stream>'), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed string.",
                             ConfigurationField.Optional.OPTIONAL)
             );
 
