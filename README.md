@@ -23,7 +23,7 @@ Here is a quick overview of the options you can use to configure the plugin:
   Port of Syslog server, specifies the TCP or UDP port of the Syslog server to send messages to. Common defaults are UDP:514, TCP:10514, TCP/TLS 6514
 
 * CONFIG_TRANSPORT_PROTOCOL
-  Syslog Transport Protocol, can be either UDP-RFC3164, UDP-RFC5424 (essentially the same as with RFC3164), TCP-RFC5424 and TCPTSL-RFC5424
+  Syslog Transport Protocol, can be either UDP-RFC3164, UDP-RFC5424 (essentially the same as with RFC3164), TCP-RFC5424 and TCPTLS-RFC5424
 
 * CONFIG_LOGLEVEL_SEVERITY
   Specifies which severity log level to be used for messages. Log level can either be derived from a stream name (```<stream>```), a field names (use '<>' for built-in fields and plain field name for user-defined fields), or a fixed severity log level (0..7).
